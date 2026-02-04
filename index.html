@@ -30,10 +30,6 @@
       height: 75vh;
       z-index: 0;
       overflow: hidden;
-      font-size: 10px;
-      line-height: 1.2;
-      color: #333;
-      white-space: pre;
     }
 
     /* Controls Panel */
@@ -62,6 +58,9 @@
       border-bottom: 1px solid #333;
       font-weight: 500;
       letter-spacing: 0.1em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .control-group {
@@ -131,10 +130,9 @@
       border: none;
       color: #888;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
+      font-size: 14px;
       cursor: pointer;
-      padding: 4px 0;
-      margin-top: 10px;
+      padding: 0;
     }
 
     .btn-toggle:hover {
@@ -159,28 +157,28 @@
     }
 
     .footer p {
-      color: #AAA;
+      color: #CCC;
       font-size: 24px;
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
 
     .footer p .company {
-      color: #AAA;
+      color: #CCC;
       cursor: pointer;
-      transition: color 0.3s ease, text-decoration 0.3s ease;
+      transition: color 0.3s ease;
+      text-decoration: underline;
     }
 
     .footer p .company:hover {
       color: #fff;
-      text-decoration: underline;
     }
 
     .footer-meta {
       display: flex;
       align-items: center;
       gap: 24px;
-      color: #777;
+      color: #888;
       font-size: 16px;
       letter-spacing: 0.05em;
       line-height: 1;
@@ -190,12 +188,12 @@
       cursor: default;
       display: flex;
       align-items: center;
-      color: #777;
+      color: #888;
     }
   </style>
 </head>
 <body>
-  <div class="ascii-background" id="asciiBackground"></div>
+  <canvas class="ascii-background" id="asciiBackground"></canvas>
 
   <div class="footer">
     <p id="description"><span id="descText">Shiwen is designing AI </span><span id="microsoftBtn" class="company">@Microsoft</span><span id="descText2">, previously </span><span id="mathworksBtn" class="company">@MathWorks</span><span id="descText3">, </span><span id="philipsBtn" class="company">@Philips</span></p>
@@ -209,7 +207,7 @@
   </div>
 
   <div class="controls hidden" id="controls">
-    <h3>> CONTROLS</h3>
+    <h3><span>> CONTROLS</span><button class="btn-toggle" id="hideControls">[×]</button></h3>
     <div class="control-group">
       <label>Size <span id="fontSizeVal">20px</span></label>
       <input type="range" id="fontSize" min="6" max="30" value="20">
@@ -222,14 +220,14 @@
       <label>Cursor Size <span id="cursorVal">2</span></label>
       <input type="range" id="cursorSize" min="2" max="15" value="2">
     </div>
-    <button class="btn-toggle" id="hideControls">[×] HIDE</button>
   </div>
   
   <button class="toggle-controls" id="showControls">[+] CONTROLS</button>
 
   <script>
     // DOM Elements
-    const bg = document.getElementById('asciiBackground');
+    const canvas = document.getElementById('asciiBackground');
+    const ctx = canvas.getContext('2d');
     const controls = document.getElementById('controls');
     
     // Settings
@@ -331,8 +329,8 @@
     function generateASCII() {
       const charWidth = settings.fontSize * 0.6;
       const charHeight = settings.fontSize * 1.2;
-      gridWidth = Math.ceil(window.innerWidth / charWidth);
-      gridHeight = Math.ceil((window.innerHeight * 0.75) / charHeight);
+      gridWidth = Math.ceil(canvas.width / charWidth);
+      gridHeight = Math.ceil(canvas.height / charHeight);
       
       gridData = [];
       let charIndex = 0;
@@ -349,12 +347,18 @@
         }
         gridData.push(row);
       }
-      
-      return renderGrid();
     }
     
-    // Render grid to HTML
+    // Render grid using Canvas
     function renderGrid() {
+      const charWidth = settings.fontSize * 0.6;
+      const charHeight = settings.fontSize * 1.2;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = settings.fontSize + 'px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
       const totalLogoWidth = logoBlockWidth * 2 + logoGap;
       const totalLogoHeight = logoBlockHeight * 2 + logoGap;
       const logoStartX = Math.floor((gridWidth - totalLogoWidth) / 2);
@@ -370,12 +374,15 @@
       const philipsStartX = Math.floor((gridWidth - philipsWidth) / 2);
       const philipsStartY = Math.floor((gridHeight - philipsHeight) / 2);
       
-      let html = '';
       let wordIndex = 0;
       
       for (let y = 0; y < gridHeight; y++) {
         for (let x = 0; x < gridWidth; x++) {
-          const cell = gridData[y][x];
+          const cell = gridData[y] && gridData[y][x];
+          if (!cell) continue;
+          
+          const px = x * charWidth + charWidth / 2;
+          const py = y * charHeight + charHeight / 2;
           
           // Microsoft logo (4 quadrants)
           if (activeLogo === 'microsoft') {
@@ -390,16 +397,20 @@
                                   y >= logoStartY + logoBlockHeight + logoGap && y < logoStartY + totalLogoHeight;
             
             if (inTopLeft) {
-              html += '<span style="color:#666">' + getLogoChar(logoWord, wordIndex++) + '</span>';
+              ctx.fillStyle = '#666';
+              ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
               continue;
             } else if (inTopRight) {
-              html += '<span style="color:#888">' + getLogoChar(logoWord, wordIndex++) + '</span>';
+              ctx.fillStyle = '#888';
+              ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
               continue;
             } else if (inBottomLeft) {
-              html += '<span style="color:#AAA">' + getLogoChar(logoWord, wordIndex++) + '</span>';
+              ctx.fillStyle = '#AAA';
+              ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
               continue;
             } else if (inBottomRight) {
-              html += '<span style="color:#CCC">' + getLogoChar(logoWord, wordIndex++) + '</span>';
+              ctx.fillStyle = '#CCC';
+              ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
               continue;
             }
           } 
@@ -411,20 +422,19 @@
               const patternChar = matlabPattern[patternY][patternX];
               if (patternChar !== ' ') {
                 const logoWord = logoWords.mathworks;
-                let color;
                 if ('#%*'.includes(patternChar)) {
                   const gradient = patternY / matlabHeight;
-                  if (gradient < 0.4) color = '#CCC';
-                  else if (gradient < 0.6) color = '#AAA';
-                  else color = '#888';
+                  if (gradient < 0.4) ctx.fillStyle = '#CCC';
+                  else if (gradient < 0.6) ctx.fillStyle = '#AAA';
+                  else ctx.fillStyle = '#888';
                 } else if ('+='.includes(patternChar)) {
-                  color = '#777';
+                  ctx.fillStyle = '#888';
                 } else if ('-:'.includes(patternChar)) {
-                  color = '#666';
+                  ctx.fillStyle = '#666';
                 } else {
-                  color = '#888';
+                  ctx.fillStyle = '#888';
                 }
-                html += '<span style="color:' + color + '">' + getLogoChar(logoWord, wordIndex++) + '</span>';
+                ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
                 continue;
               }
             }
@@ -437,7 +447,8 @@
               const patternChar = philipsPattern[patternY][patternX];
               if (patternChar === 'p') {
                 const logoWord = logoWords.philips;
-                html += '<span style="color:#888">' + getLogoChar(logoWord, wordIndex++) + '</span>';
+                ctx.fillStyle = '#888';
+                ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
                 continue;
               }
             }
@@ -445,16 +456,14 @@
           
           // Trail effect
           if (cell.opacity > 0) {
-            const alpha = cell.opacity.toFixed(2);
-            html += '<span style="color:rgba(255,255,255,' + alpha + ')">' + cell.currentChar + '</span>';
+            ctx.fillStyle = 'rgba(255,255,255,' + cell.opacity.toFixed(2) + ')';
+            ctx.fillText(cell.currentChar, px, py);
           } else {
-            html += '<span style="color:#333">' + cell.baseChar + '</span>';
+            ctx.fillStyle = '#333';
+            ctx.fillText(cell.baseChar, px, py);
           }
         }
-        html += '\n';
       }
-      
-      return html;
     }
 
     // Update cursor trail
@@ -516,34 +525,43 @@
     // Animation loop
     function animate() {
       updateTrail();
-      bg.innerHTML = renderGrid();
+      renderGrid();
       requestAnimationFrame(animate);
     }
 
     // Update background
     function updateBackground() {
-      bg.style.fontSize = settings.fontSize + 'px';
-      bg.innerHTML = generateASCII();
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight * 0.75;
+      generateASCII();
     }
 
     // Initialize
     updateBackground();
     animate();
 
-    // Event listeners
+    // Throttled mouse move
+    let lastMouseUpdate = 0;
     document.addEventListener('mousemove', (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
+      const now = Date.now();
+      if (now - lastMouseUpdate > 16) { // ~60fps
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        lastMouseUpdate = now;
+      }
     });
 
+    // Debounced resize
+    let resizeTimeout;
     window.addEventListener('resize', () => {
-      updateBackground();
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(updateBackground, 100);
     });
 
     document.getElementById('fontSize').addEventListener('input', (e) => {
       settings.fontSize = parseInt(e.target.value);
       document.getElementById('fontSizeVal').textContent = settings.fontSize + 'px';
-      updateBackground();
+      generateASCII();
     });
 
     document.getElementById('trailLength').addEventListener('input', (e) => {

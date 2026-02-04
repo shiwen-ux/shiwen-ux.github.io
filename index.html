@@ -209,12 +209,12 @@
   <div class="controls hidden" id="controls">
     <h3><span>> CONTROLS</span><button class="btn-toggle" id="hideControls">[×]</button></h3>
     <div class="control-group">
-      <label>Size <span id="fontSizeVal">20px</span></label>
-      <input type="range" id="fontSize" min="6" max="30" value="20">
+      <label>Size <span id="fontSizeVal">12px</span></label>
+      <input type="range" id="fontSize" min="12" max="30" value="12">
     </div>
     <div class="control-group">
-      <label>Trail Length <span id="trailVal">48</span></label>
-      <input type="range" id="trailLength" min="5" max="100" value="48">
+      <label>Trail Length <span id="trailVal">44</span></label>
+      <input type="range" id="trailLength" min="5" max="100" value="44">
     </div>
     <div class="control-group">
       <label>Cursor Size <span id="cursorVal">6</span></label>
@@ -231,9 +231,9 @@
     const controls = document.getElementById('controls');
     
     // Settings
-    let settings = { fontSize: 20 };
+    let settings = { fontSize: 12 };
     let cursorRadius = 6;
-    let maxTrailLength = 48;
+    let maxTrailLength = 44;
     
     // Grid state
     let gridData = [];
@@ -510,11 +510,10 @@
         currentRadius = cursorRadius;
       } else if (trailPoints.length > 0) {
         // When idle, shrink the cursor radius toward center
-        currentRadius = Math.max(0, currentRadius - 0.15);
+        currentRadius = Math.max(0, currentRadius - 0.08);
         
-        // Remove trail points as radius shrinks
+        // Remove trail points slowly
         trailPoints.pop();
-        if (trailPoints.length > 0) trailPoints.pop();
       }
       
       // Reset all cells

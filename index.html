@@ -246,9 +246,13 @@
     let lastMoveTime = Date.now();
     let trailPoints = [];
     let currentRadius = 6; // Dynamic radius that shrinks when idle
+    let breatheTime = 0; // For idle breathing animation
+    let lastCanvasTouchTime = 0; // Track when cursor last touched canvas
     
     // Logo state
     let activeLogo = null;
+    let logoStartTime = 0; // When logo started showing
+    let logoEndTime = 0; // When logo stopped showing
     let logoScrambleStart = 0;
     let isScrambling = false;
     const scrambleDuration = 1000;
@@ -469,7 +473,34 @@
             ctx.fillStyle = 'rgba(255,255,255,' + cell.opacity.toFixed(2) + ')';
             ctx.fillText(cell.currentChar, px, py);
           } else {
-            ctx.fillStyle = '#333';
+            // Breathing effect when no trail is active
+            if (trailPoints.length === 0) {
+              // Calculate breathing intensity
+              const timeSinceTouch = Date.now() - lastCanvasTouchTime;
+              let fadeIn = Math.min(Math.max(timeSinceTouch - 500, 0) / 2000, 1);
+              
+              // Fade out when logo is showing
+              if (activeLogo) {
+                const logoFadeOut = Math.min((Date.now() - logoStartTime) / 2000, 1);
+                fadeIn = fadeIn * (1 - logoFadeOut);
+              } else if (logoEndTime > 0) {
+                // Fade back in after logo hides
+                const logoFadeIn = Math.min((Date.now() - logoEndTime) / 2000, 1);
+                fadeIn = fadeIn * logoFadeIn;
+              }
+              
+              if (fadeIn > 0.01) {
+                const wave = Math.sin(breatheTime * 0.001 + x * 0.05 + y * 0.08) * 0.5 + 0.5;
+                const baseBrightness = 51; // #333
+                const targetBrightness = 20 + wave * 80;
+                const brightness = Math.floor(baseBrightness + (targetBrightness - baseBrightness) * fadeIn);
+                ctx.fillStyle = 'rgb(' + brightness + ',' + brightness + ',' + brightness + ')';
+              } else {
+                ctx.fillStyle = '#333';
+              }
+            } else {
+              ctx.fillStyle = '#333';
+            }
             ctx.fillText(cell.baseChar, px, py);
           }
         }
@@ -503,6 +534,7 @@
       
       if (isInCanvas && !isIdle) {
         trailPoints.unshift({ x: gridX, y: gridY, time: Date.now() });
+        lastCanvasTouchTime = Date.now();
         if (trailPoints.length > maxTrailLength) {
           trailPoints.pop();
         }
@@ -552,6 +584,7 @@
 
     // Animation loop
     function animate() {
+      breatheTime = Date.now();
       updateTrail();
       renderGrid();
       requestAnimationFrame(animate);
@@ -617,6 +650,7 @@
     
     function startLogoHover(logoName) {
       activeLogo = logoName;
+      logoStartTime = Date.now();
       logoScrambleStart = Date.now();
       isScrambling = true;
       setTimeout(() => {
@@ -628,6 +662,7 @@
     
     function endLogoHover() {
       activeLogo = null;
+      logoEndTime = Date.now();
       isScrambling = false;
     }
     

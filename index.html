@@ -241,7 +241,11 @@
     let gridHeight = 0;
     let mouseX = 0;
     let mouseY = 0;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    let lastMoveTime = Date.now();
     let trailPoints = [];
+    let currentRadius = 6; // Dynamic radius that shrinks when idle
     
     // Logo state
     let activeLogo = null;
@@ -262,51 +266,111 @@
       philips: 'philips'
     };
     
-    const logoBlockWidth = 12;
-    const logoBlockHeight = 6;
-    const logoGap = 1;
-    
-    // MATLAB membrane logo pattern
-    const matlabPattern = [
-      '                           #%*#             ',
-      '                          #+#=+#            ',
-      '                         %=%#:-*#           ',
-      '                       #%+%%*--+*#          ',
-      '                      %%##%#*--=*##         ',
-      '                    ##%%*%%#*===*##*        ',
-      '                #####%%*%%##*===+*##        ',
-      '              +**##%%%*%%%##*+=++*###       ',
-      '             =+*##%%%*%%%##**++++**##       ',
-      '         +++++=#%%%%*%%%%##**++++**###      ',
-      '     ++++++++++++#%*%%%%###**+++++**###     ',
-      '+++++++++++++++++#*%%%%####**+++++**###     ',
-      '  =+++++++++++++*#%%%%####***+++++***###    ',
-      '     +++++++++#+#%%%%####****++++++***###   ',
-      '       =++++#=+#%%%#####*****+++++   **###  ',
-      '              ##%#####******+++         ##* ',
-      '               ####********++             # ',
-      '                *+++++++++++                ',
-      '                 ----====+                  ',
-      '                  :::---                    ',
-      '                   :::                      ',
-    ];
-    
-    // Philips wordmark logo pattern
-    const philipsPattern = [
-      'pppp    pp  pp  pp  pp        pp  pppp     pppp   ',
-      'pp pp   pp  pp  pp  pp        pp  pp pp   pp  pp  ',
-      'pp  pp  pp  pp  pp  pp        pp  pp  pp  pp      ',
-      'pp  pp  pp  pp  pp  pp        pp  pp  pp  pp      ',
-      'pppp    pppppp  pp  pp        pp  pppp     pppp   ',
-      'pp      pp  pp  pp  pp        pp  pp          pp  ',
-      'pp      pp  pp  pp  pp        pp  pp          pp  ',
-      'pp      pp  pp  pp  pppppp    pp  pp      pp  pp  ',
-      'pp      pp  pp  pp  pppppp    pp  pp       pppp   ',
-    ];
+    // Logo patterns
+    const logoPatterns = {
+      microsoft: [
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '                           ',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+        '############# #############',
+      ],
+      mathworks: [
+        '                             @@@@               ',
+        '                            @@@@@@@             ',
+        '                          @@@@@@@@@             ',
+        '                         @@@@@@@@@@@            ',
+        '                        @@ @@@@@@@@@@           ',
+        '                     @@@@ @@@@@@@@@@@@          ',
+        '                  @@@@@@ @@@@@@@@@@@@@          ',
+        '                @@@@@@@ @@@@@@@@@@@@@@@         ',
+        '                @@@@@  @@@@@@@@@@@@@@@@         ',
+        '          @@@@    @@  @@@@@@@@@@@@@@@@@@        ',
+        '     @@@@@@@@@@@@    @@@@@@@@@@@@@@@@@@@@       ',
+        '   @@@@@@@@@@@@@   @@@@@@@@@@@@@@@@@@@@@@       ',
+        '      @@@@@@@@   @@@@@@@@@@@@@@@@@@@@@@@@@      ',
+        '         @@@   @@@@@@@@@@@@@@@@@@@@@@@@@@@@     ',
+        '             @@@@@@@@@@@@@@@@@@@@       @@@@    ',
+        '                 @@@@@@@@@@@@@@@          @@    ',
+        '                  @@@@@@@@@@@@              @   ',
+        '                   @@@@@@@@@                    ',
+        '                   @@@@@@@@                     ',
+        '                    @@@@@                       ',
+      ],
+      philips: [
+        '###################################',
+        '###################################',
+        '###....#..#..#..#..##.#-....#...###',
+        '###.##.#.....#..#..##.#-.##.#...###',
+        '###.####..#..#..#..##.#-.######..##',
+        '###################################',
+        '###############.....###############',
+        '##########...#...........##########',
+        '#######..########...........#######',
+        '######...##..#...............######',
+        '################...............####',
+        '###:.....##..........########...###',
+        '###......#.......##################',
+        '##:..........######.............:##',
+        '###############.....###############',
+        '##...............#####:.........###',
+        '#######....########......#......###',
+        ' ##...########*.........##......## ',
+        '  ##...............+##########=##  ',
+        '   ##...................##....##   ',
+        '    ###.............*#...#..###    ',
+        '      ###............*....###      ',
+        '        ######.......######        ',
+        '            ###########            ',
+      ]
+    };
 
     // Get cursor character (cycles through "shiwen_")
     function getCursorChar(index) {
       return cursorWord[index % cursorWord.length];
+    }
+    
+    // Get logo color based on position
+    function getLogoColor(logo, patternX, patternY, width, height) {
+      const gradient = patternY / height;
+      if (logo === 'microsoft') {
+        const isTop = patternY < 8;
+        const isLeft = patternX < 13;
+        if (isTop && isLeft) return '#666';
+        if (isTop && !isLeft) return '#888';
+        if (!isTop && isLeft) return '#AAA';
+        return '#CCC';
+      }
+      if (logo === 'mathworks') {
+        if (gradient < 0.35) return '#CCC';
+        if (gradient < 0.55) return '#AAA';
+        if (gradient < 0.75) return '#888';
+        return '#666';
+      }
+      // philips
+      if (gradient < 0.3) return '#AAA';
+      if (gradient < 0.5) return '#999';
+      if (gradient < 0.7) return '#888';
+      return '#777';
+    }
+    
+    // Check if character should be rendered
+    function isLogoChar(logo, char) {
+      if (logo === 'microsoft') return char !== ' ';
+      if (logo === 'mathworks') return char === '@';
+      return char !== ' ' && char !== '.';
     }
     
     // Get logo character with scramble effect
@@ -328,10 +392,12 @@
     // Generate ASCII background
     function generateASCII() {
       const charWidth = settings.fontSize * 0.6;
-      const charHeight = settings.fontSize * 1.2;
-      // Use floor instead of ceil to avoid partial characters at edges
+      const charHeight = settings.fontSize;
+      // Use floor and ensure odd numbers for perfect centering
       gridWidth = Math.floor(canvas.width / charWidth);
       gridHeight = Math.floor(canvas.height / charHeight);
+      if (gridWidth % 2 === 0) gridWidth--;
+      if (gridHeight % 2 === 0) gridHeight--;
       
       gridData = [];
       let charIndex = 0;
@@ -353,7 +419,7 @@
     // Render grid using Canvas
     function renderGrid() {
       const charWidth = settings.fontSize * 0.6;
-      const charHeight = settings.fontSize * 1.2;
+      const charHeight = settings.fontSize;
       
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
@@ -367,20 +433,12 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      const totalLogoWidth = logoBlockWidth * 2 + logoGap;
-      const totalLogoHeight = logoBlockHeight * 2 + logoGap;
-      const logoStartX = Math.floor((gridWidth - totalLogoWidth) / 2);
-      const logoStartY = Math.floor((gridHeight - totalLogoHeight) / 2);
-      
-      const matlabWidth = matlabPattern[0].length;
-      const matlabHeight = matlabPattern.length;
-      const matlabStartX = Math.floor((gridWidth - matlabWidth) / 2);
-      const matlabStartY = Math.floor((gridHeight - matlabHeight) / 2);
-      
-      const philipsWidth = philipsPattern[0].length;
-      const philipsHeight = philipsPattern.length;
-      const philipsStartX = Math.floor((gridWidth - philipsWidth) / 2);
-      const philipsStartY = Math.floor((gridHeight - philipsHeight) / 2);
+      // Get active logo pattern info
+      const pattern = activeLogo ? logoPatterns[activeLogo] : null;
+      const patternWidth = pattern ? pattern[0].length : 0;
+      const patternHeight = pattern ? pattern.length : 0;
+      const startX = pattern ? Math.floor((gridWidth - patternWidth) / 2) : 0;
+      const startY = pattern ? Math.floor((gridHeight - patternHeight) / 2) : 0;
       
       let wordIndex = 0;
       
@@ -392,71 +450,15 @@
           const px = x * charWidth + charWidth / 2;
           const py = y * charHeight + charHeight / 2;
           
-          // Microsoft logo (4 quadrants)
-          if (activeLogo === 'microsoft') {
-            const logoWord = logoWords.microsoft;
-            const inTopLeft = x >= logoStartX && x < logoStartX + logoBlockWidth && 
-                              y >= logoStartY && y < logoStartY + logoBlockHeight;
-            const inTopRight = x >= logoStartX + logoBlockWidth + logoGap && x < logoStartX + totalLogoWidth && 
-                               y >= logoStartY && y < logoStartY + logoBlockHeight;
-            const inBottomLeft = x >= logoStartX && x < logoStartX + logoBlockWidth && 
-                                 y >= logoStartY + logoBlockHeight + logoGap && y < logoStartY + totalLogoHeight;
-            const inBottomRight = x >= logoStartX + logoBlockWidth + logoGap && x < logoStartX + totalLogoWidth && 
-                                  y >= logoStartY + logoBlockHeight + logoGap && y < logoStartY + totalLogoHeight;
-            
-            if (inTopLeft) {
-              ctx.fillStyle = '#666';
-              ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
-              continue;
-            } else if (inTopRight) {
-              ctx.fillStyle = '#888';
-              ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
-              continue;
-            } else if (inBottomLeft) {
-              ctx.fillStyle = '#AAA';
-              ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
-              continue;
-            } else if (inBottomRight) {
-              ctx.fillStyle = '#CCC';
-              ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
-              continue;
-            }
-          } 
-          // MathWorks logo
-          else if (activeLogo === 'mathworks') {
-            const patternY = y - matlabStartY;
-            const patternX = x - matlabStartX;
-            if (patternY >= 0 && patternY < matlabHeight && patternX >= 0 && patternX < matlabWidth) {
-              const patternChar = matlabPattern[patternY][patternX];
-              if (patternChar !== ' ') {
-                const logoWord = logoWords.mathworks;
-                if ('#%*'.includes(patternChar)) {
-                  const gradient = patternY / matlabHeight;
-                  if (gradient < 0.4) ctx.fillStyle = '#CCC';
-                  else if (gradient < 0.6) ctx.fillStyle = '#AAA';
-                  else ctx.fillStyle = '#888';
-                } else if ('+='.includes(patternChar)) {
-                  ctx.fillStyle = '#888';
-                } else if ('-:'.includes(patternChar)) {
-                  ctx.fillStyle = '#666';
-                } else {
-                  ctx.fillStyle = '#888';
-                }
-                ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
-                continue;
-              }
-            }
-          } 
-          // Philips logo
-          else if (activeLogo === 'philips') {
-            const patternY = y - philipsStartY;
-            const patternX = x - philipsStartX;
-            if (patternY >= 0 && patternY < philipsHeight && patternX >= 0 && patternX < philipsWidth) {
-              const patternChar = philipsPattern[patternY][patternX];
-              if (patternChar === 'p') {
-                const logoWord = logoWords.philips;
-                ctx.fillStyle = '#888';
-                ctx.fillText(getLogoChar(logoWord, wordIndex++), px, py);
+          // Logo rendering
+          if (activeLogo && pattern) {
+            const patternY = y - startY;
+            const patternX = x - startX;
+            if (patternY >= 0 && patternY < patternHeight && patternX >= 0 && patternX < patternWidth) {
+              const char = pattern[patternY][patternX];
+              if (isLogoChar(activeLogo, char)) {
+                ctx.fillStyle = getLogoColor(activeLogo, patternX, patternY, patternWidth, patternHeight);
+                ctx.fillText(getLogoChar(logoWords[activeLogo], wordIndex++), px, py);
                 continue;
               }
             }
@@ -473,13 +475,13 @@
         }
       }
       
-      ctx.restore(); // Restore clipping
+      ctx.restore();
     }
 
     // Update cursor trail
     function updateTrail() {
       const charWidth = settings.fontSize * 0.6;
-      const charHeight = settings.fontSize * 1.2;
+      const charHeight = settings.fontSize;
       const canvasHeight = window.innerHeight * 0.75;
       const gridX = Math.floor(mouseX / charWidth);
       const gridY = Math.floor(mouseY / charHeight);
@@ -487,16 +489,32 @@
       // Only add new points if cursor is within the canvas area
       const isInCanvas = mouseY < canvasHeight && gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight;
       
-      if (isInCanvas) {
+      // Check if cursor is moving
+      const isMoving = (mouseX !== lastMouseX || mouseY !== lastMouseY);
+      if (isMoving) {
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+        lastMoveTime = Date.now();
+      }
+      
+      // Fade out if cursor hasn't moved for 500ms
+      const idleTime = Date.now() - lastMoveTime;
+      const isIdle = idleTime > 500;
+      
+      if (isInCanvas && !isIdle) {
         trailPoints.unshift({ x: gridX, y: gridY, time: Date.now() });
         if (trailPoints.length > maxTrailLength) {
           trailPoints.pop();
         }
-      } else {
-        // When cursor is outside canvas, gradually remove trail points to create fade out
-        if (trailPoints.length > 0) {
-          trailPoints.pop();
-        }
+        // Reset currentRadius to full size when moving
+        currentRadius = cursorRadius;
+      } else if (trailPoints.length > 0) {
+        // When idle, shrink the cursor radius toward center
+        currentRadius = Math.max(0, currentRadius - 0.15);
+        
+        // Remove trail points as radius shrinks
+        trailPoints.pop();
+        if (trailPoints.length > 0) trailPoints.pop();
       }
       
       // Reset all cells
@@ -506,20 +524,21 @@
         }
       }
       
-      // Apply trail effect
+      // Apply trail effect with dynamic radius
+      const effectRadius = Math.ceil(currentRadius);
       trailPoints.forEach((point, index) => {
         const age = index / maxTrailLength;
         const baseOpacity = 1 - age;
         
-        for (let dy = -cursorRadius; dy <= cursorRadius; dy++) {
-          for (let dx = -cursorRadius; dx <= cursorRadius; dx++) {
+        for (let dy = -effectRadius; dy <= effectRadius; dy++) {
+          for (let dx = -effectRadius; dx <= effectRadius; dx++) {
             const px = point.x + dx;
             const py = point.y + dy;
             
             if (px >= 0 && px < gridWidth && py >= 0 && py < gridHeight) {
               const dist = Math.sqrt(dx * dx + dy * dy);
-              if (dist <= cursorRadius) {
-                const distFactor = 1 - (dist / cursorRadius);
+              if (dist <= currentRadius) {
+                const distFactor = 1 - (dist / Math.max(currentRadius, 0.1));
                 const opacity = baseOpacity * distFactor * 0.8;
                 if (opacity > gridData[py][px].opacity) {
                   gridData[py][px].opacity = opacity;

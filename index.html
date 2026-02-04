@@ -217,8 +217,8 @@
       <input type="range" id="trailLength" min="5" max="100" value="48">
     </div>
     <div class="control-group">
-      <label>Cursor Size <span id="cursorVal">2</span></label>
-      <input type="range" id="cursorSize" min="2" max="15" value="2">
+      <label>Cursor Size <span id="cursorVal">6</span></label>
+      <input type="range" id="cursorSize" min="2" max="15" value="6">
     </div>
   </div>
   
@@ -232,7 +232,7 @@
     
     // Settings
     let settings = { fontSize: 20 };
-    let cursorRadius = 2;
+    let cursorRadius = 6;
     let maxTrailLength = 48;
     
     // Grid state
@@ -329,8 +329,9 @@
     function generateASCII() {
       const charWidth = settings.fontSize * 0.6;
       const charHeight = settings.fontSize * 1.2;
-      gridWidth = Math.ceil(canvas.width / charWidth);
-      gridHeight = Math.ceil(canvas.height / charHeight);
+      // Use floor instead of ceil to avoid partial characters at edges
+      gridWidth = Math.floor(canvas.width / charWidth);
+      gridHeight = Math.floor(canvas.height / charHeight);
       
       gridData = [];
       let charIndex = 0;
@@ -355,6 +356,13 @@
       const charHeight = settings.fontSize * 1.2;
       
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Clip to canvas bounds to prevent overflow
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.clip();
+      
       ctx.font = settings.fontSize + 'px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -464,6 +472,8 @@
           }
         }
       }
+      
+      ctx.restore(); // Restore clipping
     }
 
     // Update cursor trail

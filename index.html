@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Shiwen | Designer</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>·</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='50' fill='white'>>_</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -148,18 +148,19 @@
       width: 100%;
       height: 25vh;
       background: #000;
-      padding: 40px;
+      padding: clamp(16px, 4vh, 40px) clamp(16px, 4vw, 40px);
       z-index: 10;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       align-items: flex-start;
+      gap: 16px;
     }
 
     .footer-main {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 16px;
     }
 
     .footer p {
@@ -202,8 +203,7 @@
       display: flex;
       align-items: center;
       gap: 24px;
-      color: #888;
-      font-size: 16px;
+      font-size: 12px;
       letter-spacing: 0.05em;
     }
 
@@ -211,11 +211,28 @@
       color: #888;
       text-decoration: none;
       transition: color 0.3s ease;
+      padding: 8px 0;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
     }
 
     .footer-link:hover {
-      color: #fff;
+      color: #ccc;
       text-decoration: underline;
+    }
+
+    .footer-link:focus {
+      color: #ccc;
+      text-decoration: underline;
+      outline: 1px solid #888;
+      outline-offset: 4px;
+    }
+
+    .footer p .company:focus {
+      color: #fff;
+      outline: 1px solid #888;
+      outline-offset: 4px;
     }
 
     .desktop-break {
@@ -227,7 +244,6 @@
       .footer {
         height: auto;
         min-height: 20vh;
-        padding: 12px 16px;
         gap: 12px;
       }
 
@@ -241,6 +257,10 @@
         flex-wrap: wrap;
         justify-content: flex-start;
         gap: 8px 16px;
+        font-size: 12px;
+      }
+
+      .footer-links {
         font-size: 12px;
       }
 
@@ -270,8 +290,12 @@
       }
 
       .footer-meta {
-        font-size: 10px;
+        font-size: 12px;
         gap: 6px 12px;
+      }
+
+      .footer-links {
+        font-size: 12px;
       }
 
       .footer {
@@ -327,6 +351,9 @@
     const ctx = canvas.getContext('2d');
     const controls = document.getElementById('controls');
     
+    // Accessibility: Check for reduced motion preference
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
     // Settings
     let settings = { fontSize: 12 };
     let cursorRadius = 6;
@@ -347,6 +374,11 @@
     let breatheTime = 0; // For idle breathing animation
     let lastCanvasTouchTime = 0; // Track when cursor last touched canvas
     
+    // Disable trail if reduced motion is preferred
+    if (prefersReducedMotion) {
+      maxTrailLength = 0;
+    }
+    
     // Logo state
     let activeLogo = null;
     let logoStartTime = 0; // When logo started showing
@@ -362,8 +394,10 @@
     
     // Page load scramble effect
     let pageLoadTime = Date.now();
-    let isPageLoading = true;
-    setTimeout(() => { isPageLoading = false; }, 1000);
+    let isPageLoading = prefersReducedMotion ? false : true;
+    if (!prefersReducedMotion) {
+      setTimeout(() => { isPageLoading = false; }, 1000);
+    }
     
     const logoWords = {
       microsoft: 'microsoft',
@@ -683,8 +717,8 @@
             ctx.fillStyle = 'rgba(255,255,255,' + cell.opacity.toFixed(2) + ')';
             ctx.fillText(cell.currentChar, px, py);
           } else {
-            // Breathing effect when no trail is active
-            if (trailPoints.length === 0) {
+            // Breathing effect when no trail is active (skip if reduced motion)
+            if (trailPoints.length === 0 && !prefersReducedMotion) {
               // Calculate breathing intensity
               const timeSinceTouch = Date.now() - lastCanvasTouchTime;
               let fadeIn = Math.min(Math.max(timeSinceTouch - 500, 0) / 2000, 1);
@@ -892,17 +926,19 @@
     function startLogoHover(logoName) {
       activeLogo = logoName;
       logoStartTime = Date.now();
-      logoScrambleStart = Date.now();
-      isScrambling = true;
-      setTimeout(() => {
-        if (activeLogo === logoName) {
-          isScrambling = false;
-        }
-      }, scrambleDuration);
+      if (!prefersReducedMotion) {
+        logoScrambleStart = Date.now();
+        isScrambling = true;
+        setTimeout(() => {
+          if (activeLogo === logoName) {
+            isScrambling = false;
+          }
+        }, scrambleDuration);
+      }
     }
     
     function endLogoHover() {
-      if (activeLogo) {
+      if (activeLogo && !prefersReducedMotion) {
         dissolvingLogo = activeLogo;
         dissolveStartTime = Date.now();
       }

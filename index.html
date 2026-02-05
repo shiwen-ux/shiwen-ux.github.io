@@ -323,6 +323,9 @@
     let logoEndTime = 0; // When logo stopped showing
     let logoScrambleStart = 0;
     let isScrambling = false;
+    let dissolvingLogo = null; // Logo that's dissolving out
+    let dissolveStartTime = 0; // When dissolve started
+    const dissolveDuration = 500; // 0.5 second dissolve
     const scrambleDuration = 1000;
     const randomChars = 'abcdefghijklmnopqrstuvwxyz0123456789@#$%&*';
     const cursorWord = 'shiwen_';
@@ -412,6 +415,34 @@
     // Get cursor character (cycles through "shiwen_")
     function getCursorChar(index) {
       return cursorWord[index % cursorWord.length];
+    }
+    
+    // Eased random value for smooth transitions (0-1)
+    function getEasedRandom(x, y, cycleDuration = 400) {
+      const time = Date.now();
+      const cycleProgress = (time % cycleDuration) / cycleDuration;
+      const eased = cycleProgress < 0.5 
+        ? 4 * cycleProgress * cycleProgress * cycleProgress 
+        : 1 - Math.pow(-2 * cycleProgress + 2, 3) / 2;
+      const timeSlot = Math.floor(time / cycleDuration);
+      const currentSeed = Math.sin(x * 12.9898 + y * 78.233 + timeSlot) * 43758.5453;
+      const nextSeed = Math.sin(x * 12.9898 + y * 78.233 + timeSlot + 1) * 43758.5453;
+      const currentRand = currentSeed - Math.floor(currentSeed);
+      const nextRand = nextSeed - Math.floor(nextSeed);
+      return currentRand + (nextRand - currentRand) * eased;
+    }
+    
+    // Check if character should show based on threshold with randomized edge
+    function shouldShowWithEdge(x, y, threshold, coreFactor = 0.6) {
+      const random = getEasedRandom(x, y);
+      const coreThreshold = threshold * coreFactor;
+      if (random < coreThreshold) return true;
+      if (random < threshold) {
+        // Edge zone: flicker
+        const flickerSeed = Math.sin(x * 45.123 + y * 89.456 + Date.now() * 0.008) * 98765.4321;
+        return (flickerSeed - Math.floor(flickerSeed)) > 0.5;
+      }
+      return false;
     }
     
     // Get logo color based on position
@@ -526,11 +557,92 @@
           if (activeLogo && pattern) {
             const patternY = y - startY;
             const patternX = x - startX;
+            
+            // Calculate blur effect for nearby dots
+            const logoAge = Date.now() - logoStartTime;
+            const effectDuration = 1000;
+            const linearProgress = Math.min(logoAge / effectDuration, 1);
+            const easedProgress = linearProgress < 0.5 
+              ? 4 * linearProgress * linearProgress * linearProgress 
+              : 1 - Math.pow(-2 * linearProgress + 2, 3) / 2;
+            const effectStrength = Math.max(0, 1 - easedProgress);
+            
+            const blurRadius = 3;
+            const isNearLogo = patternY >= -blurRadius && patternY < patternHeight + blurRadius && 
+                               patternX >= -blurRadius && patternX < patternWidth + blurRadius;
+            
             if (patternY >= 0 && patternY < patternHeight && patternX >= 0 && patternX < patternWidth) {
               const char = pattern[patternY][patternX];
               if (isLogoChar(activeLogo, char)) {
+                // Check if edge character and apply randomized edge effect
+                if (effectStrength > 0) {
+                  let edgeCount = 0;
+                  for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                      if (dx === 0 && dy === 0) continue;
+                      const ny = patternY + dy, nx = patternX + dx;
+                      if (ny < 0 || ny >= patternHeight || nx < 0 || nx >= patternWidth || 
+                          !isLogoChar(activeLogo, pattern[ny]?.[nx])) edgeCount++;
+                    }
+                  }
+                  if (edgeCount > 0 && getEasedRandom(x, y) < (edgeCount / 8) * 0.6 * effectStrength) continue;
+                }
+                
                 ctx.fillStyle = getLogoColor(activeLogo, patternX, patternY, patternWidth, patternHeight);
                 ctx.fillText(getLogoChar(logoWords[activeLogo], wordIndex++), px, py);
+                continue;
+              }
+            }
+            
+            // Apply blur to nearby dots
+            if (isNearLogo && effectStrength > 0) {
+              let minDistToLogo = Infinity;
+              for (let dy = -blurRadius; dy <= blurRadius; dy++) {
+                for (let dx = -blurRadius; dx <= blurRadius; dx++) {
+                  const ny = patternY + dy, nx = patternX + dx;
+                  if (ny >= 0 && ny < patternHeight && nx >= 0 && nx < patternWidth && 
+                      isLogoChar(activeLogo, pattern[ny][nx])) {
+                    minDistToLogo = Math.min(minDistToLogo, Math.sqrt(dx * dx + dy * dy));
+                  }
+                }
+              }
+              
+              if (minDistToLogo < blurRadius) {
+                const blurFactor = 1 - (minDistToLogo / blurRadius);
+                if (getEasedRandom(x, y, 200) < blurFactor * 0.7 * effectStrength) {
+                  ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + blurFactor * 0.4).toFixed(2) + ')';
+                  ctx.fillText(cell.randomChar, px, py);
+                  continue;
+                }
+              }
+            }
+          }
+          
+          // Dissolving logo rendering (outro effect)
+          if (dissolvingLogo && !activeLogo) {
+            const dissolvePattern = logoPatterns[dissolvingLogo];
+            const dissolvePatternWidth = dissolvePattern[0].length;
+            const dissolvePatternHeight = dissolvePattern.length;
+            const dissolveStartX = Math.floor((gridWidth - dissolvePatternWidth) / 2);
+            const dissolveStartY = Math.floor((gridHeight - dissolvePatternHeight) / 2);
+            const dissolvePatternY = y - dissolveStartY;
+            const dissolvePatternX = x - dissolveStartX;
+            
+            const dissolveAge = Date.now() - dissolveStartTime;
+            const dissolveLinear = Math.min(dissolveAge / dissolveDuration, 1);
+            const dissolveEased = dissolveLinear < 0.5 
+              ? 4 * dissolveLinear * dissolveLinear * dissolveLinear 
+              : 1 - Math.pow(-2 * dissolveLinear + 2, 3) / 2;
+            const dissolveStrength = 1 - dissolveEased;
+            
+            if (dissolveAge >= dissolveDuration) {
+              dissolvingLogo = null;
+            } else if (dissolvePatternY >= 0 && dissolvePatternY < dissolvePatternHeight && 
+                       dissolvePatternX >= 0 && dissolvePatternX < dissolvePatternWidth) {
+              const dissolveChar = dissolvePattern[dissolvePatternY][dissolvePatternX];
+              if (isLogoChar(dissolvingLogo, dissolveChar) && shouldShowWithEdge(x, y, dissolveStrength)) {
+                ctx.fillStyle = getLogoColor(dissolvingLogo, dissolvePatternX, dissolvePatternY, dissolvePatternWidth, dissolvePatternHeight);
+                ctx.fillText(getLogoChar(logoWords[dissolvingLogo], wordIndex++), px, py);
                 continue;
               }
             }
@@ -623,11 +735,11 @@
         }
       }
       
-      // Apply trail effect with dynamic radius
+      // Apply trail effect with dynamic radius and randomized edges
       const effectRadius = Math.ceil(currentRadius);
       trailPoints.forEach((point, index) => {
         const age = index / maxTrailLength;
-        const baseOpacity = 1 - age;
+        const baseOpacity = (1 - age) * 0.8;
         
         for (let dy = -effectRadius; dy <= effectRadius; dy++) {
           for (let dx = -effectRadius; dx <= effectRadius; dx++) {
@@ -637,10 +749,13 @@
             if (px >= 0 && px < gridWidth && py >= 0 && py < gridHeight) {
               const dist = Math.sqrt(dx * dx + dy * dy);
               if (dist <= currentRadius) {
-                const distFactor = 1 - (dist / Math.max(currentRadius, 0.1));
-                const opacity = baseOpacity * distFactor * 0.8;
-                if (opacity > gridData[py][px].opacity) {
-                  gridData[py][px].opacity = opacity;
+                // Randomize the edge: characters near the edge have a chance to not appear
+                const edgeThreshold = currentRadius * 0.6;
+                let shouldShow = dist <= edgeThreshold || 
+                  getEasedRandom(px, py) > (dist - edgeThreshold) / (currentRadius - edgeThreshold) * 0.8;
+                
+                if (shouldShow && baseOpacity > gridData[py][px].opacity) {
+                  gridData[py][px].opacity = baseOpacity;
                   gridData[py][px].currentChar = gridData[py][px].randomChar;
                 }
               }
@@ -756,6 +871,10 @@
     }
     
     function endLogoHover() {
+      if (activeLogo) {
+        dissolvingLogo = activeLogo;
+        dissolveStartTime = Date.now();
+      }
       activeLogo = null;
       logoEndTime = Date.now();
       isScrambling = false;

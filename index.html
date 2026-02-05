@@ -351,8 +351,19 @@
     const ctx = canvas.getContext('2d');
     const controls = document.getElementById('controls');
     
+    // Offscreen canvas for static background (performance optimization)
+    const staticCanvas = document.createElement('canvas');
+    const staticCtx = staticCanvas.getContext('2d');
+    let staticBackgroundDirty = true; // Flag to know when to redraw static background
+    
     // Accessibility: Check for reduced motion preference
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    // Performance: Detect Safari and throttle frame rate
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    let lastFrameTime = 0;
+    const targetFPS = isSafari ? 30 : 60; // Throttle Safari to 30fps
+    const frameInterval = 1000 / targetFPS;
     
     // Settings
     let settings = { fontSize: 12 };
@@ -566,6 +577,9 @@
       if (gridWidth % 2 === 0) gridWidth--;
       if (gridHeight % 2 === 0) gridHeight--;
       
+      // Mark static background for redraw
+      staticBackgroundDirty = true;
+      
       gridData = [];
       let charIndex = 0;
       
@@ -583,22 +597,55 @@
       }
     }
     
+    // Cache computed values
+    let cachedCharWidth = settings.fontSize * 0.6;
+    let cachedCharHeight = settings.fontSize;
+    let cachedFont = settings.fontSize + 'px "JetBrains Mono", monospace';
+    
+    function updateCachedValues() {
+      cachedCharWidth = settings.fontSize * 0.6;
+      cachedCharHeight = settings.fontSize;
+      cachedFont = settings.fontSize + 'px "JetBrains Mono", monospace';
+    }
+    
+    // Render static background (dots only) to offscreen canvas
+    function renderStaticBackground() {
+      staticCanvas.width = canvas.width;
+      staticCanvas.height = canvas.height;
+      staticCtx.clearRect(0, 0, staticCanvas.width, staticCanvas.height);
+      staticCtx.font = cachedFont;
+      staticCtx.textAlign = 'center';
+      staticCtx.textBaseline = 'middle';
+      staticCtx.fillStyle = '#333';
+      
+      const charWidth = cachedCharWidth;
+      const charHeight = cachedCharHeight;
+      
+      for (let y = 0; y < gridHeight; y++) {
+        for (let x = 0; x < gridWidth; x++) {
+          const px = x * charWidth + charWidth / 2;
+          const py = y * charHeight + charHeight / 2;
+          staticCtx.fillText('·', px, py);
+        }
+      }
+      staticBackgroundDirty = false;
+    }
+    
     // Render grid using Canvas
     function renderGrid() {
-      const charWidth = settings.fontSize * 0.6;
-      const charHeight = settings.fontSize;
+      // Redraw static background if needed
+      if (staticBackgroundDirty) {
+        renderStaticBackground();
+      }
       
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Clip to canvas bounds to prevent overflow
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, 0, canvas.width, canvas.height);
-      ctx.clip();
-      
-      ctx.font = settings.fontSize + 'px "JetBrains Mono", monospace';
+      ctx.font = cachedFont;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      
+      const charWidth = cachedCharWidth;
+      const charHeight = cachedCharHeight;
       
       // Get active logo pattern info
       const pattern = activeLogo ? logoPatterns[activeLogo] : null;
@@ -606,6 +653,35 @@
       const patternHeight = pattern ? pattern.length : 0;
       const startX = pattern ? Math.floor((gridWidth - patternWidth) / 2) : 0;
       const startY = pattern ? Math.floor((gridHeight - patternHeight) / 2) : 0;
+      
+      // Check if we have any dynamic content to render
+      const hasTrail = trailPoints.length > 0;
+      const hasLogo = activeLogo || dissolvingLogo;
+      const hasBreathing = !hasTrail && !prefersReducedMotion;
+      
+      // Calculate breathing fade values once (outside the loop)
+      let breathingFadeIn = 0;
+      if (hasBreathing) {
+        const timeSinceTouch = Date.now() - lastCanvasTouchTime;
+        breathingFadeIn = Math.min(Math.max(timeSinceTouch - 500, 0) / 2000, 1);
+        
+        if (activeLogo) {
+          const logoFadeOut = Math.min((Date.now() - logoStartTime) / 2000, 1);
+          breathingFadeIn = breathingFadeIn * (1 - logoFadeOut);
+        } else if (logoEndTime > 0) {
+          const logoFadeIn = Math.min((Date.now() - logoEndTime) / 2000, 1);
+          breathingFadeIn = breathingFadeIn * logoFadeIn;
+        }
+      }
+      
+      // Use static background only when there's no breathing effect active
+      const useStaticBg = !hasBreathing || breathingFadeIn < 0.01;
+      if (useStaticBg) {
+        ctx.drawImage(staticCanvas, 0, 0);
+      }
+      
+      // If no dynamic content and using static bg, we're done
+      if (!hasTrail && !hasLogo && useStaticBg) return;
       
       let wordIndex = 0;
       
@@ -712,51 +788,29 @@
             }
           }
           
-          // Trail effect
+          // Trail effect - draw over static background
           if (cell.opacity > 0) {
             ctx.fillStyle = 'rgba(255,255,255,' + cell.opacity.toFixed(2) + ')';
             ctx.fillText(cell.currentChar, px, py);
-          } else {
-            // Breathing effect when no trail is active (skip if reduced motion)
-            if (trailPoints.length === 0 && !prefersReducedMotion) {
-              // Calculate breathing intensity
-              const timeSinceTouch = Date.now() - lastCanvasTouchTime;
-              let fadeIn = Math.min(Math.max(timeSinceTouch - 500, 0) / 2000, 1);
-              
-              // Fade out when logo is showing
-              if (activeLogo) {
-                const logoFadeOut = Math.min((Date.now() - logoStartTime) / 2000, 1);
-                fadeIn = fadeIn * (1 - logoFadeOut);
-              } else if (logoEndTime > 0) {
-                // Fade back in after logo hides
-                const logoFadeIn = Math.min((Date.now() - logoEndTime) / 2000, 1);
-                fadeIn = fadeIn * logoFadeIn;
-              }
-              
-              if (fadeIn > 0.01) {
-                const wave = Math.sin(breatheTime * 0.001 + x * 0.05 + y * 0.08) * 0.5 + 0.5;
-                const baseBrightness = 51; // #333
-                const targetBrightness = 20 + wave * 80;
-                const brightness = Math.floor(baseBrightness + (targetBrightness - baseBrightness) * fadeIn);
-                ctx.fillStyle = 'rgb(' + brightness + ',' + brightness + ',' + brightness + ')';
-              } else {
-                ctx.fillStyle = '#333';
-              }
-            } else {
-              ctx.fillStyle = '#333';
-            }
+          } else if (hasBreathing && breathingFadeIn > 0.01) {
+            // Breathing effect - draw all dots with wave brightness
+            const wave = Math.sin(breatheTime * 0.001 + x * 0.05 + y * 0.08);
+            const baseBrightness = 51; // #333
+            // Oscillate symmetrically around #333 (range: 21-81)
+            const brightness = Math.floor(baseBrightness + wave * 30 * breathingFadeIn);
+            ctx.fillStyle = 'rgb(' + brightness + ',' + brightness + ',' + brightness + ')';
             ctx.fillText(cell.baseChar, px, py);
           }
+          // else: static background already has the dot (or was drawn above)
         }
       }
       
-      ctx.restore();
     }
 
     // Update cursor trail
     function updateTrail() {
-      const charWidth = settings.fontSize * 0.6;
-      const charHeight = settings.fontSize;
+      const charWidth = cachedCharWidth;
+      const charHeight = cachedCharHeight;
       const canvasHeight = window.innerHeight * 0.75;
       const gridX = Math.floor(mouseX / charWidth);
       const gridY = Math.floor(mouseY / charHeight);
@@ -829,18 +883,24 @@
       });
     }
 
-    // Animation loop
-    function animate() {
+    // Animation loop with frame throttling for Safari
+    function animate(currentTime) {
+      requestAnimationFrame(animate);
+      
+      // Throttle frame rate
+      if (currentTime - lastFrameTime < frameInterval) return;
+      lastFrameTime = currentTime;
+      
       breatheTime = Date.now();
       updateTrail();
       renderGrid();
-      requestAnimationFrame(animate);
     }
 
     // Update background
     function updateBackground() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight * 0.75;
+      updateCachedValues();
       generateASCII();
     }
 
@@ -897,6 +957,7 @@
     document.getElementById('fontSize').addEventListener('input', (e) => {
       settings.fontSize = parseInt(e.target.value);
       document.getElementById('fontSizeVal').textContent = settings.fontSize + 'px';
+      updateCachedValues();
       generateASCII();
     });
 

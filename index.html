@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='50' fill='white'>>_</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@fontsource/monaspace-neon@5.0.1/index.css" rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -15,10 +15,20 @@
       box-sizing: border-box;
     }
 
+    ::selection {
+      background: #fff;
+      color: #000;
+    }
+
+    ::-moz-selection {
+      background: #fff;
+      color: #000;
+    }
+
     body {
       background: #000;
       color: #fff;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Monaspace Neon', monospace;
       overflow-x: hidden;
       min-height: 100vh;
     }
@@ -148,7 +158,7 @@
       width: 100%;
       height: 25vh;
       background: #000;
-      padding: clamp(16px, 4vh, 40px) clamp(16px, 4vw, 40px);
+      padding: clamp(12px, 2vh, 24px) clamp(16px, 4vw, 40px);
       z-index: 10;
       display: flex;
       flex-direction: column;
@@ -163,19 +173,33 @@
       gap: 16px;
     }
 
+    .footer-description {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
     .footer p {
-      color: #CCC;
+      color: #fff;
       font-size: 24px;
       letter-spacing: 0.05em;
       text-transform: uppercase;
       max-width: 800px;
     }
 
+    .footer p.previously {
+      color: #888;
+    }
+
     .footer p .company {
-      color: #CCC;
+      color: #888;
       cursor: pointer;
       transition: color 0.3s ease;
       text-decoration: underline;
+    }
+
+    .footer p .company.primary {
+      color: #fff;
     }
 
     .footer p .company:hover {
@@ -314,7 +338,10 @@
 
   <div class="footer">
     <div class="footer-main">
-      <p id="description"><span id="descText">Shiwen is designing AI </span><span id="microsoftBtn" class="company">@Microsoft</span><span id="descText2">, previously </span><span id="mathworksBtn" class="company">@MathWorks</span><span id="descText3">, </span><span id="philipsBtn" class="company">@Philips</span></p>
+      <div class="footer-description">
+        <p id="description1"><span id="descText">Shiwen is designing AI for Devs </span><span id="microsoftBtn" class="company primary">@Microsoft</span></p>
+        <p id="description2" class="previously"><span id="descText2">previously </span><span id="mathworksBtn" class="company">@MathWorks</span><span id="descText3">, </span><span id="philipsBtn" class="company">@Philips</span></p>
+      </div>
       <div class="footer-meta">
         <span id="localTime">--:--:-- PST</span>
         <span>Vancouver, BC</span>
@@ -520,28 +547,26 @@
       return false;
     }
     
-    // Get logo color based on position
+    // Get logo color based on position (using consistent grayscale: #fff, #ccc, #888)
     function getLogoColor(logo, patternX, patternY, width, height) {
       const gradient = patternY / height;
       if (logo === 'microsoft') {
         const isTop = patternY < 8;
         const isLeft = patternX < 13;
-        if (isTop && isLeft) return '#666';
-        if (isTop && !isLeft) return '#888';
-        if (!isTop && isLeft) return '#AAA';
-        return '#CCC';
+        if (isTop && isLeft) return '#888';
+        if (isTop && !isLeft) return '#ccc';
+        if (!isTop && isLeft) return '#ccc';
+        return '#fff';
       }
       if (logo === 'mathworks') {
-        if (gradient < 0.35) return '#CCC';
-        if (gradient < 0.55) return '#AAA';
-        if (gradient < 0.75) return '#888';
-        return '#666';
+        if (gradient < 0.35) return '#fff';
+        if (gradient < 0.6) return '#ccc';
+        return '#888';
       }
       // philips
-      if (gradient < 0.3) return '#AAA';
-      if (gradient < 0.5) return '#999';
-      if (gradient < 0.7) return '#888';
-      return '#777';
+      if (gradient < 0.35) return '#fff';
+      if (gradient < 0.6) return '#ccc';
+      return '#888';
     }
     
     // Check if character should be rendered
@@ -1034,42 +1059,63 @@
     updateTime();
     setInterval(updateTime, 1000);
 
-    // Description scramble effect on page load
-    const descriptionText = 'SHIWEN IS DESIGNING AI @MICROSOFT, PREVIOUSLY @MATHWORKS, @PHILIPS';
-    const descriptionEl = document.getElementById('description');
-    const originalHTML = descriptionEl.innerHTML;
+    // Description scramble effect on page load - two separate lines
+    const line1Text = 'SHIWEN IS DESIGNING AI FOR DEVS @MICROSOFT';
+    const line2Text = 'PREVIOUSLY @MATHWORKS, @PHILIPS';
+    const line1El = document.getElementById('description1');
+    const line2El = document.getElementById('description2');
+    const line1OriginalHTML = line1El.innerHTML;
+    const line2OriginalHTML = line2El.innerHTML;
+    const line1Duration = 800;
+    const line2Delay = 0;
+    const line2Duration = 800;
     
-    function scrambleDescription() {
-      const elapsed = Date.now() - pageLoadTime;
-      const progress = Math.min(elapsed / 1000, 1);
-      const revealCount = Math.floor(progress * descriptionText.length);
+    function scrambleLine(text, el, startTime, duration) {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const revealCount = Math.floor(progress * text.length);
       
       let scrambledText = '';
-      for (let i = 0; i < descriptionText.length; i++) {
-        if (descriptionText[i] === ' ') {
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === ' ') {
           scrambledText += ' ';
         } else if (i < revealCount) {
-          scrambledText += descriptionText[i];
+          scrambledText += text[i];
         } else {
           scrambledText += randomChars[Math.floor(Math.random() * randomChars.length)].toUpperCase();
         }
       }
+      return { scrambledText, progress };
+    }
+    
+    function scrambleDescription() {
+      const elapsed = Date.now() - pageLoadTime;
       
-      descriptionEl.textContent = scrambledText;
+      // Line 1 animation
+      const line1Result = scrambleLine(line1Text, line1El, pageLoadTime, line1Duration);
+      line1El.textContent = line1Result.scrambledText;
       
-      if (progress < 1) {
-        requestAnimationFrame(scrambleDescription);
-      } else {
-        // Restore original HTML with interactive spans
-        descriptionEl.innerHTML = originalHTML;
-        // Re-attach event listeners
-        document.getElementById('microsoftBtn').addEventListener('mouseenter', () => startLogoHover('microsoft'));
-        document.getElementById('microsoftBtn').addEventListener('mouseleave', endLogoHover);
-        document.getElementById('mathworksBtn').addEventListener('mouseenter', () => startLogoHover('mathworks'));
-        document.getElementById('mathworksBtn').addEventListener('mouseleave', endLogoHover);
-        document.getElementById('philipsBtn').addEventListener('mouseenter', () => startLogoHover('philips'));
-        document.getElementById('philipsBtn').addEventListener('mouseleave', endLogoHover);
+      // Line 2 animation (delayed start)
+      if (elapsed >= line2Delay) {
+        const line2Result = scrambleLine(line2Text, line2El, pageLoadTime + line2Delay, line2Duration);
+        line2El.textContent = line2Result.scrambledText;
+        
+        if (line1Result.progress >= 1 && line2Result.progress >= 1) {
+          // Restore original HTML with interactive spans
+          line1El.innerHTML = line1OriginalHTML;
+          line2El.innerHTML = line2OriginalHTML;
+          // Re-attach event listeners
+          document.getElementById('microsoftBtn').addEventListener('mouseenter', () => startLogoHover('microsoft'));
+          document.getElementById('microsoftBtn').addEventListener('mouseleave', endLogoHover);
+          document.getElementById('mathworksBtn').addEventListener('mouseenter', () => startLogoHover('mathworks'));
+          document.getElementById('mathworksBtn').addEventListener('mouseleave', endLogoHover);
+          document.getElementById('philipsBtn').addEventListener('mouseenter', () => startLogoHover('philips'));
+          document.getElementById('philipsBtn').addEventListener('mouseleave', endLogoHover);
+          return;
+        }
       }
+      
+      requestAnimationFrame(scrambleDescription);
     }
     scrambleDescription();
   </script>
